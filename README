@@ -1,0 +1,4 @@
+A parser for Kris Nuttycombe's Pickle markup syntax
+
+Usage:
+$ ./tagparser run < file > output.json
