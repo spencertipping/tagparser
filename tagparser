@@ -408,6 +408,7 @@ dangerous('', sub {&$_(@args)}) for grep /^hook::${hook}::/, sort keys %data;
 @args;
 __d74d8e2b611342af6a0897e0bd62e6e6
 meta::function('hooks', 'join "\\n", sort keys %{$transient{active_hooks}};');
+meta::function('html', 'node([qw/cached_dependency::caterwaul.all.js js::tagparser js::html/], @_);');
 meta::function('identity', 'retrieve(\'data::permanent-identity\') || associate(\'data::permanent-identity\', fast_hash(rand() . name() . serialize()));');
 meta::function('import', <<'__ac86cbe9c9fb12fc8cef2cc88e80c01e');
 my $name = pop @_;
@@ -553,7 +554,7 @@ around_hook('rm', @_, sub {
   exists $data{$_} or terminal::warning("$_ does not exist") for @_;
   delete @data{@_}});
 __7cecfb1691a7bf86741f00058bcc54ca
-meta::function('run', 'node([qw/cached_dependency::caterwaul.all.js js::tagparser/], @_);');
+meta::function('run', 'node([qw/cached_dependency::caterwaul.all.js js::tagparser js::json/], @_);');
 meta::function('run-forever', <<'__76175932a2d2692fc802856c28d0848d');
 # Runs your application indefinitely, restarting each time it fails.
 # There's a one-second delay between restarts to prevent a tight loop.
@@ -1141,15 +1142,43 @@ meta::retriever('sdocp', <<'__fef74cd94fa8761618662802f0bfc171');
 my $attribute = attribute($_[0]);
 exists $data{"sdoc::$attribute"} ? sdocp("sdoc::$attribute") : undef;
 __fef74cd94fa8761618662802f0bfc171
-meta::sdoc('js::tagparser', <<'__ea3f8c1cc3176aedcbd982985c745996');
-caterwaul.clone('std continuation seq parser')(function () {
-  process.stdin /se[_.on('data', chunks/mb/push),
-                    _.on('end', parse),
-                    _.resume()],
-  where*[
-    chunks            = [],
-    parse()           = process.stdout.write(JSON.stringify(text(chunks.join('')))),
+meta::sdoc('js::html', <<'__9638feb27d6021cba61996dbb0a16166');
+Emits parsed tags as HTML.
+This script assumes that the tagparser global is available.
 
+caterwaul.clone('std seq')(function () {
+  process.stdin /se[_.on('data', chunks/mb/push),
+                    _.on('end',  convert_to_html),
+                    _.resume()],
+
+  where*[chunks = [],
+         convert_to_html() = process.stdout.write(as_html(tagparser(chunks.join('')))),
+         
+         escape(s)  = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
+         as_html(t) = t && t.constructor === String ? escape(t) :
+                      'text' in t                   ? escape(t.text) :
+                      'name' in t                   ? t.metadata ? '<#{t.name} #{attrs(t.metadata)}>#{as_html(t.data)}</#{t.name}>' :
+                                                                   '<#{t.name}>#{as_html(t.data)}</#{t.name}>' :
+                      t instanceof Array            ? seq[~t *+as_html].join('') : 'Unknown form: #{t}',
+                      
+         attrs(xs)  = seq[~xs *['#{_.name}="#{_.data[0].text}"']].join(' ')]})();
+__9638feb27d6021cba61996dbb0a16166
+meta::sdoc('js::json', <<'__79a400ef15cd1f53604315cb03bfc572');
+Emits parsed tags in JSON form.
+This script assumes that the tagparser global is available.
+
+caterwaul.clone('std seq')(function () {
+  process.stdin /se[_.on('data', chunks/mb/push),
+                    _.on('end',  convert_to_json),
+                    _.resume()],
+
+  where*[chunks = [],
+         convert_to_json() = process.stdout.write(JSON.stringify(tagparser(chunks.join(''))))]})();
+__79a400ef15cd1f53604315cb03bfc572
+meta::sdoc('js::tagparser', <<'__e117c60294f4eabec585ed9dcf38dd1b');
+caterwaul.clone('std continuation seq parser')(function () {
+  tagparser = text,
+  where*[
     text(x)           = text(x),
     data_space(x)     = data_space(x),
     metadata_space(x) = metadata_space(x),
@@ -1160,7 +1189,7 @@ caterwaul.clone('std continuation seq parser')(function () {
     not_special       = l[bracketed_case = peg[c('[') % not_special % c(']') >> fn[xs]['[#{xs[1].text}]']],
                           text_case      = peg[c(/[^@\s\|\[\]]/, 1)[1] >> fn[xs][seq[~xs *[_[0]]].join('')]],
                           escaped_case   = peg[c(/\\(.)/, 2) >> fn[xs][xs[1]]]] in
-                        peg[([whitespace] % (bracketed_case / text_case / escaped_case))[1] >> fn[xs][{text: seq[~xs *[_[1]]].join('')}]],
+                        peg[([whitespace] % (bracketed_case / text_case / escaped_case))[1] >> fn[xs][{text: seq[~xs *[(_[0] || '') + _[1]]].join('')}]],
 
     label             = peg[c(/@(\w+)/, 2) >> fn[xs][{name: xs[1], data: false, metadata: false}]],
     tag               = peg[label % c('[') % data_space % [whitespace] % [c('|') % metadata_space] % c(']') >>
@@ -1173,7 +1202,7 @@ caterwaul.clone('std continuation seq parser')(function () {
                             fn[xs][{name: xs[1], metadata: xs[3] /re[_ && _[1]], data: xs[5] /re[xs[6] ? _.concat(xs[6]) : _]}]],
 
     text              = peg[([whitespace] % (tag / label / block / not_special))[0] >> fn[xs][seq[~xs *[_[1]]].slice()]]]})();
-__ea3f8c1cc3176aedcbd982985c745996
+__e117c60294f4eabec585ed9dcf38dd1b
 internal::main();
 
 __END__

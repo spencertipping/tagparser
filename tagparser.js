@@ -1,11 +1,6 @@
 caterwaul.clone('std continuation seq parser')(function () {
-  process.stdin /se[_.on('data', chunks/mb/push),
-                    _.on('end', parse),
-                    _.resume()],
+  tagparser = text,
   where*[
-    chunks            = [],
-    parse()           = process.stdout.write(JSON.stringify(text(chunks.join('')))),
-
     text(x)           = text(x),
     data_space(x)     = data_space(x),
     metadata_space(x) = metadata_space(x),
