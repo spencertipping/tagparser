@@ -2,5 +2,6 @@ A parser for Kris Nuttycombe's Pickle markup syntax
 
 Usage:
 $ ./tagparser run < file > output.json
+$ ./tagparser html < file > output.html
 
 (requires node to be in your path)
