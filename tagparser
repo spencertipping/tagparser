@@ -204,7 +204,10 @@ meta::meta('type::state', <<'__c1f29670be26f1df6100ffe4334e1202');
 meta::configure 'state', inherit => 0, extension => '.pl';
 meta::define_form 'state', \&meta::bootstrap::implementation;
 __c1f29670be26f1df6100ffe4334e1202
+meta::meta('type::vim_highlighter', 'meta::functor::editable \'vim_highlighter\', extension => \'.vim\', inherit => 1, default => \'edit\';');
 meta::alias('e', 'edit sdoc::js::tagparser');
+meta::alias('eh', 'edit sdoc::js::html');
+meta::alias('ej', 'edit sdoc::js::json');
 meta::bootstrap('initialization', <<'__8774229a1a0ce7fd056d81ba0b077f79');
 #!/usr/bin/perl
 # Run perldoc on this file for documentation.
@@ -342,16 +345,16 @@ my @ordered_keys = (grep(/^meta::/, @valid_keys), grep(! /^meta::/, @valid_keys)
 join "\n", map serialize_single($_), @ordered_keys;
 __d83ae43551c0f58d1d0ce576402a315a
 meta::function('disable', 'hook(\'disable\', chmod_self(sub {$_[0] & 0666}));');
-meta::function('dupdate', <<'__0dea14d6eee0043b3664098a1613144e');
+meta::function('dupdate', <<'__1c0273217c5b9f2756bb14a4a00aa7e2');
 # Update the repository based on the dependencies it lists.
 use LWP::Simple ();
-rm($_) for grep /^cached_dependency::/, keys %data;
+rm(grep /^cached_dependency::/, keys %data);
 my %dependencies = dependencies();
 
 for (keys %dependencies) {
   terminal::info("Retrieving $dependencies{$_} as $_");
   associate("cached_dependency::$_", LWP::Simple::get($dependencies{$_}))}
-__0dea14d6eee0043b3664098a1613144e
+__1c0273217c5b9f2756bb14a4a00aa7e2
 meta::function('edit', <<'__6da7b44df34219cf87876b642d6fe500');
 my ($name, %options) = @_;
 my $extension = extension_for($name);
@@ -408,7 +411,10 @@ dangerous('', sub {&$_(@args)}) for grep /^hook::${hook}::/, sort keys %data;
 @args;
 __d74d8e2b611342af6a0897e0bd62e6e6
 meta::function('hooks', 'join "\\n", sort keys %{$transient{active_hooks}};');
-meta::function('html', 'node([qw/cached_dependency::caterwaul.all.js js::tagparser js::html/], @_);');
+meta::function('html', <<'__e0084a81f58a79174f155fb0cdd82c8e');
+node([qw/cached_dependency::caterwaul.all.js js::tagparser js::html/], @_);
+'';
+__e0084a81f58a79174f155fb0cdd82c8e
 meta::function('identity', 'retrieve(\'data::permanent-identity\') || associate(\'data::permanent-identity\', fast_hash(rand() . name() . serialize()));');
 meta::function('import', <<'__ac86cbe9c9fb12fc8cef2cc88e80c01e');
 my $name = pop @_;
@@ -420,18 +426,6 @@ my ($attribute, @criteria) = @_;
 my ($options, @stuff) = separate_options(@criteria);
 grep $_ eq $attribute, select_keys(%$options);
 __5d4fddb72b0715694b83aa0c925a8d04
-meta::function('lib', <<'__1fdcdc3310118791c100b533f6c11070');
-# Regenerates lib/ directory
-hook('bin/before-lib');
-hook('bin/before-lib-clean');
-rm($_) for grep /^js::dependency::/, keys %data;
-hook('bin/after-lib-clean');
-
-hook('bin/before-lib-download');
-qx|cd lib && wget -nv $_| for split /\n+/, libraries();
-hook('bin/after-lib-download');
-hook('bin/after-lib');
-__1fdcdc3310118791c100b533f6c11070
 meta::function('load-state', <<'__ea18db867bd62a294e067f60e6975dcf');
 around_hook('load-state', @_, sub {
   my ($state_name) = @_;
@@ -449,8 +443,10 @@ around_hook('load-state', @_, sub {
   reload();
   verify()});
 __ea18db867bd62a294e067f60e6975dcf
-meta::function('loc', <<'__ce427fbd35d560bbcc08f542f56a306a');
+meta::function('loc', <<'__5a1885d8e743dd80dcda866050f84434');
 # Counts SLOC, whitespace, and total LOC in the codebase.
+hook('before-loc', @_);
+
 my $criteria    = join '|', @_;
 my @attributes  = grep s/^sdoc:://, select_keys('--criteria' => $criteria);
 my $tcomments   = 0;
@@ -471,7 +467,9 @@ my $loc = sub {
 
 terminal::info(map &$loc($_), @attributes);
 terminal::info(&$line($tsource, $twhitespace, $tcomments, 'total'));
-__ce427fbd35d560bbcc08f542f56a306a
+
+hook('after-loc', @_);
+__5a1885d8e743dd80dcda866050f84434
 meta::function('lock', 'hook(\'lock\', chmod_self(sub {$_[0] & 0555}));');
 meta::function('ls', <<'__acdc3ca5777ab9c7c430d493a7555998');
 my ($options, @criteria) = separate_options(@_);
@@ -495,7 +493,6 @@ my @flags       = map {my $k = $_; join '', map($flag_hashes{$_}{$k} ? $_ : '-',
 join "\n", map strip($_), split /\n/, table_display($all ? [@definitions] : [grep length, @externals], $dereference ? ([@externals]) : (),
                                                     $sizes ? ([@sizes]) : (), $flags ? ([@flags]) : ());
 __acdc3ca5777ab9c7c430d493a7555998
-meta::function('lss', '# Attribute function::lss');
 meta::function('mv', <<'__52e95180e3c7019116bd798e0da0fdda');
 my ($from, $to) = @_;
 die "'$from' does not exist" unless exists $data{$from};
@@ -507,54 +504,49 @@ my $name = $0;
 $name =~ s/^.*\///;
 $name;
 __6848cbc257e4b6d7441b25acb04e23c9
-meta::function('node', <<'__0dbdfd4cc670051c20430f7ff167ccab');
+meta::function('node', <<'__3522fde8f76947a5f70bca33f1ee0016');
 # Runs node on a collection of source files and arguments. The format is:
 # node([@source_strings], @process_args);
 my ($sources, @args) = @_;
 
 with_exported(@$sources, sub {
-  hook('bin/before-node', $_[0], @args);
+  hook('before-node', $_[0], @args);
   sh('node', $_[0], @args);
-  hook('bin/after-node', $_[0], @args);
+  hook('after-node', $_[0], @args);
 });
-__0dbdfd4cc670051c20430f7ff167ccab
-meta::function('node-custom', <<'__accbe0c73db6f402198448fd92d5f515');
+__3522fde8f76947a5f70bca33f1ee0016
+meta::function('node-custom', <<'__c2f4063798c997ec7f78a3543b1240b3');
 # Runs node on a collection of source files and arguments. The format is:
 # &{'node-custom'}([@source_strings], [@node_arguments], @process_args);
 my ($sources, $node_args, @args) = @_;
 
 with_exported(@$sources, sub {
-  hook('bin/before-node-custom', @$node_args, $_[0], @args);
+  hook('before-node-custom', @$node_args, $_[0], @args);
   sh('node', @$node_args, $_[0], @args);
-  hook('bin/after-node-custom', @$node_args, $_[0], @args);
+  hook('after-node-custom', @$node_args, $_[0], @args);
 });
-__accbe0c73db6f402198448fd92d5f515
+__c2f4063798c997ec7f78a3543b1240b3
 meta::function('parents', 'join "\\n", grep s/^parent:://o, sort keys %data;');
 meta::function('perl', <<'__986a274c013b77fe08d29726ce3799fe');
 my $result = eval(join ' ', @_);
 $@ ? terminal::error($@) : $result;
 __986a274c013b77fe08d29726ce3799fe
 meta::function('reload', 'around_hook(\'reload\', sub {execute($_) for grep ! /^bootstrap::/, keys %data});');
-meta::function('render', 'file::write(attribute($_) . \'.js\', retrieve($_), mkpath => 1) for grep s/^sdoc::js::/js::/ || /^js::/, keys %data;');
-meta::function('repl', <<'__31ce26877d3622ecdda1025b308ae6aa');
-# Runs a REPL of your source, minus the webserver.
-render();
-hook('bin/before-repl');
-
-my $repl_base = retrieve('data::repl-base') or die 'You need to define data::main-base to be a newline-separated list of files to load for the REPL.';
-
-my ($file, $name) = ('/tmp/' . state() . '-repl.js', name());
-file::write($file, -f 'repl.js' ? 'repl.js' : "id::require('repl').start('$name> ')");
-node([split(/ /, $repl_base), $file]);
-
-hook('bin/after-repl');
-__31ce26877d3622ecdda1025b308ae6aa
+meta::function('render', <<'__d11b6e7522980db1022b1ccd575bdc30');
+hook('before-render');
+file::write(attribute($_) .            '.js',       retrieve($_), mkpath => 1) for grep s/^sdoc::js::/js::/ || /^js::/, keys %data;
+file::write(attribute(attribute($_)) . '.js.sdocp', retrieve($_), mkpath => 1) for grep s/^sdoc::js::/sdocp::js::/, keys %data;
+hook('after-render');
+__d11b6e7522980db1022b1ccd575bdc30
 meta::function('rm', <<'__7cecfb1691a7bf86741f00058bcc54ca');
 around_hook('rm', @_, sub {
   exists $data{$_} or terminal::warning("$_ does not exist") for @_;
   delete @data{@_}});
 __7cecfb1691a7bf86741f00058bcc54ca
-meta::function('run', 'node([qw/cached_dependency::caterwaul.all.js js::tagparser js::json/], @_);');
+meta::function('run', <<'__89285dbff58a79174f155fb0cdd82c8e');
+node([qw/cached_dependency::caterwaul.all.js js::tagparser js::json/], @_);
+'';
+__89285dbff58a79174f155fb0cdd82c8e
 meta::function('run-forever', <<'__76175932a2d2692fc802856c28d0848d');
 # Runs your application indefinitely, restarting each time it fails.
 # There's a one-second delay between restarts to prevent a tight loop.
@@ -734,6 +726,11 @@ terminal::error("Verification failed; expected $state but got $observed from $ot
 hook('after-verify', $result, observed => $observed, expected => $state);
 $result;
 __d31b85fffd464ddf516d2afeb63dcbde
+meta::function('vim', <<'__bd231af998c353790253bc6660be0b90');
+# Installs VIM highlighters.
+file::write("$ENV{'HOME'}/.vim/syntax/$_.vim", retrieve("vim_highlighter::$_")) for grep s/^vim_highlighter:://o, keys %data;
+__bd231af998c353790253bc6660be0b90
+meta::hook('after-render::vim', 'file::write(\'pickle.vim\', retrieve(\'vim_highlighter::pickle\'));');
 meta::internal_function('around_hook', <<'__e1cd17b80d4e8165df9c94facd9f239b');
 # around_hook('hookname', @args, sub {
 #   stuff;
@@ -1010,20 +1007,18 @@ meta::parent('/home/spencertipping/bin/configuration', <<'__511208c99d8bc2caa306
 meta::type::configuration
 parent::/home/spencertipping/bin/object
 __511208c99d8bc2caa3067db9f1824163
-meta::parent('/home/spencertipping/bin/node-base', <<'__384732ad24be298a4346bb0dd8a044df');
-function::lib
+meta::parent('/home/spencertipping/bin/node-base', <<'__cb3ede4ac84dd70a220e31df5e90c4d6');
 function::loc
 function::node
 function::node-custom
 function::render
-function::repl
 function::run-forever
 internal_function::dep
 message_color::test
 meta::type::js
 parent::/home/spencertipping/bin/repository
 parent::/home/spencertipping/conjectures/perl-objects/sdoc
-__384732ad24be298a4346bb0dd8a044df
+__cb3ede4ac84dd70a220e31df5e90c4d6
 meta::parent('/home/spencertipping/bin/object', <<'__ebddf828b1c914a7461db84c344b9ebd');
 bootstrap::initialization
 bootstrap::perldoc
@@ -1126,15 +1121,116 @@ function::dupdate
 meta::type::cached_dependency
 parent::/home/spencertipping/bin/configuration
 __f88c2b0e5725507b3fdb5719fd65e6d3
-meta::parent('/home/spencertipping/conjectures/perl-objects/sdoc', <<'__2d47795f5a2f946e1655dcc68b32aadd');
-function::lss
+meta::parent('/home/spencertipping/conjectures/perl-objects/sdoc', <<'__6b80e7e220f0ce19851eaf5bb9cf2fc7');
 function::sdoc
 function::sdocp
 meta::type::sdoc
 parent::/home/spencertipping/bin/object
 retriever::sdoc
 retriever::sdocp
-__2d47795f5a2f946e1655dcc68b32aadd
+__6b80e7e220f0ce19851eaf5bb9cf2fc7
+meta::parent('object', <<'__ebddf828b1c914a7461db84c344b9ebd');
+bootstrap::initialization
+bootstrap::perldoc
+function::alias
+function::cat
+function::cc
+function::child
+function::clone
+function::cp
+function::create
+function::current-state
+function::disable
+function::edit
+function::enable
+function::export
+function::extern
+function::grep
+function::hash
+function::hook
+function::hooks
+function::identity
+function::import
+function::initial-state
+function::is
+function::load-state
+function::lock
+function::ls
+function::mv
+function::name
+function::parents
+function::perl
+function::reload
+function::rm
+function::save
+function::save-state
+function::serialize
+function::serialize_single
+function::sh
+function::shell
+function::size
+function::snapshot
+function::state
+function::touch
+function::unlock
+function::update
+function::update-from
+function::usage
+function::verify
+internal_function::around_hook
+internal_function::associate
+internal_function::attribute
+internal_function::chmod_self
+internal_function::dangerous
+internal_function::debug_trace
+internal_function::execute
+internal_function::exported
+internal_function::extension_for
+internal_function::fast_hash
+internal_function::file::read
+internal_function::file::write
+internal_function::fnv_hash
+internal_function::hypothetically
+internal_function::internal::main
+internal_function::invoke_editor_on
+internal_function::is_locked
+internal_function::namespace
+internal_function::retrieve
+internal_function::retrieve_with_hooks
+internal_function::select_keys
+internal_function::separate_options
+internal_function::strip
+internal_function::table_display
+internal_function::temporary_name
+internal_function::translate_backtrace
+internal_function::with_exported
+library::terminal
+message_color::state
+message_color::states
+meta::configure
+meta::externalize
+meta::functor::editable
+meta::type::alias
+meta::type::bootstrap
+meta::type::data
+meta::type::function
+meta::type::hook
+meta::type::inc
+meta::type::internal_function
+meta::type::library
+meta::type::message_color
+meta::type::meta
+meta::type::parent
+meta::type::retriever
+meta::type::state
+retriever::file
+retriever::id
+__ebddf828b1c914a7461db84c344b9ebd
+meta::parent('vim-highlighters', <<'__1258d5867978f2068c8efd130c2066f7');
+function::vim
+meta::type::vim_highlighter
+parent::object
+__1258d5867978f2068c8efd130c2066f7
 meta::retriever('file', '-f $_[0] ? file::read($_[0]) : undef;');
 meta::retriever('id', '$_[0] =~ /^id::/ ? substr($_[0], 4) : undef;');
 meta::retriever('sdoc', 'exists $data{"sdoc::$_[0]"} ? sdoc("sdoc::$_[0]") : undef;');
@@ -1142,7 +1238,7 @@ meta::retriever('sdocp', <<'__fef74cd94fa8761618662802f0bfc171');
 my $attribute = attribute($_[0]);
 exists $data{"sdoc::$attribute"} ? sdocp("sdoc::$attribute") : undef;
 __fef74cd94fa8761618662802f0bfc171
-meta::sdoc('js::html', <<'__9638feb27d6021cba61996dbb0a16166');
+meta::sdoc('js::html', <<'__c25241efa4efe889f9a80fdf157abc97');
 Emits parsed tags as HTML.
 This script assumes that the tagparser global is available.
 
@@ -1157,12 +1253,14 @@ caterwaul.clone('std seq')(function () {
          escape(s)  = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'),
          as_html(t) = t && t.constructor === String ? escape(t) :
                       'text' in t                   ? escape(t.text) :
-                      'name' in t                   ? t.metadata ? '<#{t.name} #{attrs(t.metadata)}>#{as_html(t.data)}</#{t.name}>' :
-                                                                   '<#{t.name}>#{as_html(t.data)}</#{t.name}>' :
-                      t instanceof Array            ? seq[~t *+as_html].join('') : 'Unknown form: #{t}',
+                      'name' in t                   ? t.data ? t.metadata ? '<#{t.name} #{attrs(t.metadata)}>#{as_html(t.data)}</#{t.name}>' :
+                                                                            '<#{t.name}>#{as_html(t.data)}</#{t.name}>' :
+                                                               t.metadata ? '<#{t.name} #{attrs(t.metadata)}/>' :
+                                                                            '<#{t.name}/>' :
+                      t instanceof Array            ? seq[~t %[_] *+as_html].join('') : 'Unknown form: #{t}',
                       
-         attrs(xs)  = seq[~xs *['#{_.name}="#{_.data[0].text}"']].join(' ')]})();
-__9638feb27d6021cba61996dbb0a16166
+         attrs(xs)  = seq[~xs *['#{_.name}="#{_.data[0]}"']].join(' ')]})();
+__c25241efa4efe889f9a80fdf157abc97
 meta::sdoc('js::json', <<'__79a400ef15cd1f53604315cb03bfc572');
 Emits parsed tags in JSON form.
 This script assumes that the tagparser global is available.
@@ -1175,34 +1273,54 @@ caterwaul.clone('std seq')(function () {
   where*[chunks = [],
          convert_to_json() = process.stdout.write(JSON.stringify(tagparser(chunks.join(''))))]})();
 __79a400ef15cd1f53604315cb03bfc572
-meta::sdoc('js::tagparser', <<'__e117c60294f4eabec585ed9dcf38dd1b');
+meta::sdoc('js::tagparser', <<'__27f96d52dfcc4eb2c940658b56facc81');
 caterwaul.clone('std continuation seq parser')(function () {
-  tagparser = text,
+  tagparser = peg[[text]],
   where*[
-    text(x)           = text(x),
-    data_space(x)     = data_space(x),
-    metadata_space(x) = metadata_space(x),
-    not_special(x)    = not_special(x),
+    // Forward definitions to allow first-class circular references
+    text(x)        = text(x),
+    metadata(x)    = metadata(x),
+    not_special(x) = not_special(x),
 
-    whitespace        = peg[c(/\s+/, 1) >> fn[xs][xs[0]]],
+    whitespace     = peg[c(/\s+/, 1) >> fn[xs][xs[0]]],
 
-    not_special       = l[bracketed_case = peg[c('[') % not_special % c(']') >> fn[xs]['[#{xs[1].text}]']],
-                          text_case      = peg[c(/[^@\s\|\[\]]/, 1)[1] >> fn[xs][seq[~xs *[_[0]]].join('')]],
-                          escaped_case   = peg[c(/\\(.)/, 2) >> fn[xs][xs[1]]]] in
-                        peg[([whitespace] % (bracketed_case / text_case / escaped_case))[1] >> fn[xs][{text: seq[~xs *[(_[0] || '') + _[1]]].join('')}]],
+    not_special    = l[bracketed_case = peg[c('[') % not_special % c(']') >> fn[xs]['[#{xs[1]}]']],
+                       text_case      = peg[c(/[^@\s\|\[\]]/, 1)[1] >> fn[xs][seq[~xs *[_[0]]].join('')]],
+                       escaped_case   = peg[c(/\\(.)/, 2) >> fn[xs][xs[1]]]] in
+                     peg[([whitespace] % (bracketed_case / text_case / escaped_case))[1] >> fn[xs][seq[~xs *[(_[0] || '') + _[1]]].join('')]],
 
-    label             = peg[c(/@(\w+)/, 2) >> fn[xs][{name: xs[1], data: false, metadata: false}]],
-    tag               = peg[label % c('[') % data_space % [whitespace] % [c('|') % metadata_space] % c(']') >>
-                            fn[xs][{name: xs[0].name, data: xs[2], metadata: xs[4] /re[_ && _[1]]}]],
+    label          = peg[c(/@(\w+)/, 2) >> fn[xs][{name: xs[1], data: false, metadata: false}]],
+    tag            = peg[label % c('[') % [text] % [whitespace] % [c('|') % metadata % [whitespace]] % c(']') >>
+                         fn[xs][{name: xs[0].name, data: xs[2], metadata: xs[4] /re[_ && _[1]]}]],
 
-    data_space        = text,
-    metadata_space    = peg[([whitespace] % (tag / label) >> fn[xs][xs[1]])[0]],
+    metadata       = peg[([whitespace] % (tag / label) >> fn[xs][xs[1]])[0]],
 
-    block             = peg[c('@[') % data_space % [whitespace] % [c('|') % metadata_space] % c(']') % data_space % [whitespace] % c('@[]') >>
-                            fn[xs][{name: xs[1], metadata: xs[3] /re[_ && _[1]], data: xs[5] /re[xs[6] ? _.concat(xs[6]) : _]}]],
+    block          = peg[c('@[') % text % [whitespace] % [c('|') % metadata % [whitespace]] % c(']') % [text] % [whitespace] % c('@[]') >>
+                         fn[xs][{name: xs[1], metadata: xs[3] /re[_ && _[1]], data: xs[5] /re[xs[6] ? _.concat(xs[6]) : _]}]],
 
-    text              = peg[([whitespace] % (tag / label / block / not_special))[0] >> fn[xs][seq[~xs *[_[1]]].slice()]]]})();
-__e117c60294f4eabec585ed9dcf38dd1b
+                     // Whitespace hackery to avoid munching the spaces before a |; e.g. @foo[bar | @bif] should contain 'bar', not 'bar '.
+    text           = peg[([whitespace] % (block / tag / label / not_special))[1] >> fn[xs][seq[(~xs -[_]) %[_ !== false]].slice()]]]})();
+__27f96d52dfcc4eb2c940658b56facc81
+meta::vim_highlighter('pickle', <<'__ca0e9d215cee8b94c09a6d5eeb1f740f');
+" Language: Pickle markup, by Kris Nuttycombe
+" Author:   Spencer Tipping <spencer@spencertipping.com>
+
+syn case match
+
+syn region pickleBrackets       matchgroup=pickleBracket start=/\[/ end=/]/ contains=TOP
+syn match  pickleData           /\([^|\]\\]\|\\.\)*/ contained contains=TOP containedin=pickleBrackets,pickleGroup nextgroup=pickleMetadata
+syn match  pickleMetadata       /|/                  contained nextgroup=pickleActualMetadata
+syn match  pickleActualMetadata /\([^|\]\\]\|\\.\)*/ contained contains=TOP
+
+syn match  pickleTag            /@\w\+/
+
+syn region pickleGroup          matchgroup=pickleSpecialBracket start=/@\[/ end=/]/ contains=TOP
+
+hi link pickleTag            Type
+hi link pickleBracket        Special
+hi link pickleSpecialBracket Special
+hi link pickleMetadata       Operator
+__ca0e9d215cee8b94c09a6d5eeb1f740f
 internal::main();
 
 __END__

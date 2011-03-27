@@ -11,7 +11,7 @@ caterwaul.clone('std continuation seq parser')(function () {
     not_special       = l[bracketed_case = peg[c('[') % not_special % c(']') >> fn[xs]['[#{xs[1].text}]']],
                           text_case      = peg[c(/[^@\s\|\[\]]/, 1)[1] >> fn[xs][seq[~xs *[_[0]]].join('')]],
                           escaped_case   = peg[c(/\\(.)/, 2) >> fn[xs][xs[1]]]] in
-                        peg[([whitespace] % (bracketed_case / text_case / escaped_case))[1] >> fn[xs][{text: seq[~xs *[_[1]]].join('')}]],
+                        peg[([whitespace] % (bracketed_case / text_case / escaped_case))[1] >> fn[xs][{text: seq[~xs *[(_[0] || '') + _[1]]].join('')}]],
 
     label             = peg[c(/@(\w+)/, 2) >> fn[xs][{name: xs[1], data: false, metadata: false}]],
     tag               = peg[label % c('[') % data_space % [whitespace] % [c('|') % metadata_space] % c(']') >>
