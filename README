@@ -5,3 +5,5 @@ $ ./tagparser run < file > output.json
 $ ./tagparser html < file > output.html
 
 (requires node to be in your path)
+
+See the examples/ directory for syntax.
