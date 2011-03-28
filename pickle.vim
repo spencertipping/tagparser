@@ -3,16 +3,32 @@
 
 syn case match
 
-syn region pickleBrackets       matchgroup=pickleBracket start=/\[/ end=/]/ contains=TOP
-syn match  pickleData           /\([^|\]\\]\|\\.\)*/ contained contains=TOP containedin=pickleBrackets,pickleGroup nextgroup=pickleMetadata
-syn match  pickleMetadata       /|/                  contained nextgroup=pickleActualMetadata
-syn match  pickleActualMetadata /\([^|\]\\]\|\\.\)*/ contained contains=TOP
+syn match  pickleStrayError       /[\]|]/
 
-syn match  pickleTag            /@\w\+/
+syn region pickleBrackets         matchgroup=pickleBracket start=/\[/  end=/]/ contains=pickleData
+syn region pickleGroupBrackets    matchgroup=pickleGroup   start=/@\[/ end=/]/ contains=pickleGroupData
 
-syn region pickleGroup          matchgroup=pickleSpecialBracket start=/@\[/ end=/]/ contains=TOP
+syn match  pickleGroupData        /\([^|\]\\]\|\\.\)*/ contained contains=TOP nextgroup=pickleMetadata
+syn match  pickleGroupName        /\w\+/ contained containedin=pickleGroupData
 
-hi link pickleTag            Type
-hi link pickleBracket        Special
-hi link pickleSpecialBracket Special
-hi link pickleMetadata       Operator
+syn match  pickleData             /\([^|\]\\]\|\\.\)*/ contained contains=TOP nextgroup=pickleMetadata
+syn region pickleMetadata         matchgroup=pickleMetadataPipe start=/|/ end=/]\@=/ contained containedin=pickleBrackets contains=@pickleMetadataStuff
+
+syn match  pickleTag              /@\w\+/
+
+syn match  pickleMetadataError    /\w\|\[/ contained
+syn match  pickleMetadataTag      /@\w\+/ contained
+syn region pickleMetadataBrackets matchgroup=pickleBracket start=/\[/ end=/]/ contained contains=@pickleTagStuff
+
+syn cluster pickleTagStuff        add=pickleTag,pickleBrackets,pickleGroupBrackets
+syn cluster pickleMetadataStuff   add=pickleMetadataError,pickleMetadataTag,pickleMetadataBrackets
+
+hi link pickleTag                 Identifier
+hi link pickleBracket             Special
+hi link pickleGroup               Special
+hi link pickleGroupName           Identifier
+hi link pickleMetadataBrackets    String
+hi link pickleMetadataPipe        Operator
+hi link pickleMetadataTag         Type
+hi link pickleMetadataError       Error
+hi link pickleStrayError          Error
