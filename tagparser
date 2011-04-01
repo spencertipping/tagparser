@@ -355,7 +355,7 @@ for (keys %dependencies) {
   terminal::info("Retrieving $dependencies{$_} as $_");
   associate("cached_dependency::$_", LWP::Simple::get($dependencies{$_}))}
 __1c0273217c5b9f2756bb14a4a00aa7e2
-meta::function('edit', <<'__6da7b44df34219cf87876b642d6fe500');
+meta::function('edit', <<'__fd926994eabc382472a1d11b61a1dc2e');
 my ($name, %options) = @_;
 my $extension = extension_for($name);
 
@@ -365,9 +365,9 @@ die "$name is inherited; use 'edit $name -f' to edit anyway" unless is($name, '-
 around_hook('edit', @_, sub {
   associate($name, invoke_editor_on($data{$name} || "# Attribute $name", %options, attribute => $name, extension => $extension),
             execute => $name !~ /^bootstrap::/)});
-save();
+save() unless $data{'data::edit::no-save'};
 '';
-__6da7b44df34219cf87876b642d6fe500
+__fd926994eabc382472a1d11b61a1dc2e
 meta::function('enable', 'hook(\'enable\', chmod_self(sub {$_[0] | $_[0] >> 2}));');
 meta::function('export', <<'__388e0cc60507443cb1c0cc3e2658cfef');
 # Exports data into a text file.
@@ -443,7 +443,7 @@ around_hook('load-state', @_, sub {
   reload();
   verify()});
 __ea18db867bd62a294e067f60e6975dcf
-meta::function('loc', <<'__5a1885d8e743dd80dcda866050f84434');
+meta::function('loc', <<'__36e0cabf1fe1c1bcaa3c8c708bd82ca0');
 # Counts SLOC, whitespace, and total LOC in the codebase.
 hook('before-loc', @_);
 
@@ -455,6 +455,7 @@ my $tsource     = 0;
 
 my $line = sub {
   my ($source, $whitespace, $comments, $name) = @_;
+  $source ||= 1;                # Prevent divide-by-zero errors
   sprintf "%5d total, %4d SLOC, %5d[%4d%%] whitespace, %5d[%4d%%] comment [%s]",
           $source + $whitespace + $comments, $source, $whitespace, int($whitespace / $source * 100), $comments, int($comments / $source * 100), $name};
 
@@ -469,7 +470,7 @@ terminal::info(map &$loc($_), @attributes);
 terminal::info(&$line($tsource, $twhitespace, $tcomments, 'total'));
 
 hook('after-loc', @_);
-__5a1885d8e743dd80dcda866050f84434
+__36e0cabf1fe1c1bcaa3c8c708bd82ca0
 meta::function('lock', 'hook(\'lock\', chmod_self(sub {$_[0] & 0555}));');
 meta::function('ls', <<'__acdc3ca5777ab9c7c430d493a7555998');
 my ($options, @criteria) = separate_options(@_);
@@ -1262,7 +1263,7 @@ caterwaul.clone('std seq')(function () {
   where*[chunks = [],
          convert_to_json() = process.stdout.write(JSON.stringify(tagparser(chunks.join(''))))]})();
 __79a400ef15cd1f53604315cb03bfc572
-meta::sdoc('js::tagparser', <<'__27f96d52dfcc4eb2c940658b56facc81');
+meta::sdoc('js::tagparser', <<'__075a8f690c1869c8c96186f879f47e55');
 caterwaul.clone('std continuation seq parser')(function () {
   tagparser = peg[[text]],
   where*[
@@ -1284,12 +1285,15 @@ caterwaul.clone('std continuation seq parser')(function () {
 
     metadata       = peg[([whitespace] % (tag / label) >> fn[xs][xs[1]])[0]],
 
-    block          = peg[c('@[') % text % [whitespace] % [c('|') % metadata % [whitespace]] % c(']') % [text] % [whitespace] % c('@[]') >>
-                         fn[xs][{name: xs[1], metadata: xs[3] /re[_ && _[1]], data: xs[5] /re[xs[6] ? _.concat(xs[6]) : _]}]],
+    block          = peg[(c('@[') % reject(c('/'))) % text % [whitespace] % [c('|') % metadata % [whitespace]] % c(']') % [text] % [whitespace] %
+                        ((c('@/')                  >> fn_[null]) /
+                         (c('@[/') % text % c(']') >> fn[xs][xs[1]])) >>
+                         fn[xs][unwind['Expected closing tag for #{xs[1].join("")} but got #{xs[7].join("")} instead'], when[xs[7] && xs[7].join('') !== xs[1].join('')],
+                                {name: xs[1], metadata: xs[3] /re[_ && _[1]], data: xs[5] /re[xs[6] ? _.concat(xs[6]) : _]}]],
 
                      // Whitespace hackery to avoid munching the spaces before a |; e.g. @foo[bar | @bif] should contain 'bar', not 'bar '.
     text           = peg[([whitespace] % (block / tag / label / not_special))[1] >> fn[xs][seq[(~xs -[_]) %[_ !== false]].slice()]]]})();
-__27f96d52dfcc4eb2c940658b56facc81
+__075a8f690c1869c8c96186f879f47e55
 meta::sdoc('js::tagparser.html', <<'__ab31b75b5ce86daa5520b0886f616b32');
 HTML adapter for the tag parser.
 This script assumes that the tagparser global is available and adds a .html() method to convert the JSON structure to HTML-like text. Because of various exceptions in the HTML format, the
@@ -1311,7 +1315,7 @@ caterwaul.clone('std seq')(function () {
                       
          attrs(xs)  = seq[~xs *['#{_.name}="#{_.data[0]}"']].join(' ')]})();
 __ab31b75b5ce86daa5520b0886f616b32
-meta::vim_highlighter('pickle', <<'__74c9e5a7fd6c5737ff8607a88c7fe67d');
+meta::vim_highlighter('pickle', <<'__717c7e8e07e72920a23235426889e2c2');
 " Language: Pickle markup, by Kris Nuttycombe
 " Author:   Spencer Tipping <spencer@spencertipping.com>
 
@@ -1324,6 +1328,9 @@ syn region pickleGroupBrackets    matchgroup=pickleGroup   start=/@\[/ end=/]/ c
 
 syn match  pickleGroupData        /\([^|\]\\]\|\\.\)*/ contained contains=TOP nextgroup=pickleMetadata
 syn match  pickleGroupName        /\w\+/ contained containedin=pickleGroupData
+
+syn match  pickleGroupClose       /@\[\/\w\+\]/
+syn match  pickleGroupClose       /@\//
 
 syn match  pickleData             /\([^|\]\\]\|\\.\)*/ contained contains=TOP nextgroup=pickleMetadata
 syn region pickleMetadata         matchgroup=pickleMetadataPipe start=/|/ end=/]\@=/ contained containedin=pickleBrackets contains=@pickleMetadataStuff
@@ -1341,12 +1348,13 @@ hi link pickleTag                 Identifier
 hi link pickleBracket             Special
 hi link pickleGroup               Special
 hi link pickleGroupName           Identifier
+hi link pickleGroupClose          Special
 hi link pickleMetadataBrackets    String
 hi link pickleMetadataPipe        Operator
 hi link pickleMetadataTag         Type
 hi link pickleMetadataError       Error
 hi link pickleStrayError          Error
-__74c9e5a7fd6c5737ff8607a88c7fe67d
+__717c7e8e07e72920a23235426889e2c2
 internal::main();
 
 __END__

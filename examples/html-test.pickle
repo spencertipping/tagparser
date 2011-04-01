@@ -6,10 +6,10 @@
       $(function () {
         $('body').append('Hello world!');
       });
-    @[]
-  @[]
+    @/
+  @/
 
   @[body]
     @h1[Pickle jQuery test]
-  @[]
-@[]
+  @[/body]
+@[/html]

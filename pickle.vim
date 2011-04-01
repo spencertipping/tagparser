@@ -11,6 +11,9 @@ syn region pickleGroupBrackets    matchgroup=pickleGroup   start=/@\[/ end=/]/ c
 syn match  pickleGroupData        /\([^|\]\\]\|\\.\)*/ contained contains=TOP nextgroup=pickleMetadata
 syn match  pickleGroupName        /\w\+/ contained containedin=pickleGroupData
 
+syn match  pickleGroupClose       /@\[\/\w\+\]/
+syn match  pickleGroupClose       /@\//
+
 syn match  pickleData             /\([^|\]\\]\|\\.\)*/ contained contains=TOP nextgroup=pickleMetadata
 syn region pickleMetadata         matchgroup=pickleMetadataPipe start=/|/ end=/]\@=/ contained containedin=pickleBrackets contains=@pickleMetadataStuff
 
@@ -27,6 +30,7 @@ hi link pickleTag                 Identifier
 hi link pickleBracket             Special
 hi link pickleGroup               Special
 hi link pickleGroupName           Identifier
+hi link pickleGroupClose          Special
 hi link pickleMetadataBrackets    String
 hi link pickleMetadataPipe        Operator
 hi link pickleMetadataTag         Type

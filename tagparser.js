@@ -19,8 +19,11 @@ caterwaul.clone('std continuation seq parser')(function () {
 
     metadata       = peg[([whitespace] % (tag / label) >> fn[xs][xs[1]])[0]],
 
-    block          = peg[c('@[') % text % [whitespace] % [c('|') % metadata % [whitespace]] % c(']') % [text] % [whitespace] % c('@[]') >>
-                         fn[xs][{name: xs[1], metadata: xs[3] /re[_ && _[1]], data: xs[5] /re[xs[6] ? _.concat(xs[6]) : _]}]],
+    block          = peg[(c('@[') % reject(c('/'))) % text % [whitespace] % [c('|') % metadata % [whitespace]] % c(']') % [text] % [whitespace] %
+                        ((c('@/')                  >> fn_[null]) /
+                         (c('@[/') % text % c(']') >> fn[xs][xs[1]])) >>
+                         fn[xs][unwind['Expected closing tag for #{xs[1].join("")} but got #{xs[7].join("")} instead'], when[xs[7] && xs[7].join('') !== xs[1].join('')],
+                                {name: xs[1], metadata: xs[3] /re[_ && _[1]], data: xs[5] /re[xs[6] ? _.concat(xs[6]) : _]}]],
 
                      // Whitespace hackery to avoid munching the spaces before a |; e.g. @foo[bar | @bif] should contain 'bar', not 'bar '.
     text           = peg[([whitespace] % (block / tag / label / not_special))[1] >> fn[xs][seq[(~xs -[_]) %[_ !== false]].slice()]]]})();
